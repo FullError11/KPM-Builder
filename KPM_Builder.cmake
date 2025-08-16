@@ -74,8 +74,14 @@ message(STATUS "[KPM Builder] 使用的链接器: ${LINKER_FOR_KPM}")
 function(build_kpm_module TARGET_NAME SOURCE_FILES)
     cmake_parse_arguments(ARG "" "" "INCLUDE_DIRS;DEFINITIONS;OPTIONS" ${ARGN})
 
-    add_library(${TARGET_NAME}_objs OBJECT ${SOURCE_FILES})
-    target_include_directories(${TARGET_NAME}_objs PRIVATE
+    set(TMP_OBJS_NAME "${TARGET_NAME}_tmp_objs")
+    add_library(${TMP_OBJS_NAME} OBJECT ${SOURCE_FILES})
+    set_target_properties(${TMP_OBJS_NAME} PROPERTIES
+        C_COMPILER "${C_COMPILER_FOR_KPM}"
+        LINKER "${LINKER_FOR_KPM}"
+        POSITION_INDEPENDENT_CODE OFF
+    )
+    target_include_directories(${TMP_OBJS_NAME} PRIVATE
         ${ARG_INCLUDE_DIRS}
         # KernelPatch的头文件路径
         ${KPM_KP_ROOT_DIR}/kernel
@@ -85,18 +91,25 @@ function(build_kpm_module TARGET_NAME SOURCE_FILES)
         ${KPM_KP_ROOT_DIR}/kernel/linux/arch/arm64/include
         ${KPM_KP_ROOT_DIR}/kernel/linux/tools/arch/arm64/include
     )
-    target_compile_definitions(${TARGET_NAME}_objs PRIVATE ${ARG_DEFINITIONS})
-    target_compile_options(${TARGET_NAME}_objs PRIVATE ${ARG_OPTIONS})
-    
-    # 手动链接
-    add_custom_command(OUTPUT ${TARGET_NAME}.kpm
-        COMMAND ${C_COMPILER_FOR_KPM} -r -o ${TARGET_NAME}.kpm $<TARGET_OBJECTS:${TARGET_NAME}_objs>
-        COMMAND ${CMAKE_COMMAND} -E remove $<TARGET_OBJECTS:${TARGET_NAME}_objs>
-        DEPENDS ${TARGET_NAME}_objs
-        COMMENT "构建KernelPatchModule: ${TARGET_NAME}.kpm"
+    target_compile_definitions(${TMP_OBJS_NAME} PRIVATE ${ARG_DEFINITIONS})
+    target_compile_options(${TMP_OBJS_NAME} PRIVATE
+        -O2  
+        -fno-PIC
+        -fno-unwind-tables
+        -fno-asynchronous-unwind-tables
+        -nostdlib
+        -ffreestanding
+        -Wa,--noexecstack
+        -Xassembler --noexecstack
+        ${ARG_OPTIONS}
     )
-    add_custom_target(${TARGET_NAME}_kpm ALL DEPENDS ${TARGET_NAME}.kpm)
-    
-    # 清理
-    set_property(DIRECTORY APPEND PROPERTY ADDITIONAL_CLEAN_FILES ${TARGET_NAME}.kpm)
+
+    add_custom_command(
+        OUTPUT ${TARGET_NAME}.kpm
+        COMMAND ld -r -o ${TARGET_NAME}.kpm $<TARGET_OBJECTS:${TMP_OBJS_NAME}>
+        DEPENDS ${TMP_OBJS_NAME}
+     )
+    add_custom_target(${TARGET_NAME} ALL
+        DEPENDS ${TARGET_NAME}.kpm
+    )
 endfunction()

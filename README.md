@@ -85,11 +85,18 @@ A: 请检查：
 /path/to/toolchain/bin/aarch64-none-elf-gcc --version
 ```
 
-## 项目起源
+## 开发背景
 - VS Code对Mackfile的支持并不好 (无法自动管理Makefile内引入的头文件路径)  
 - 本人不擅长 Makefile的语法 
 所以基于 KernelPatch 内的示例Makefile, 就有了本项目
 
+## 更新日志
+- 2025-08-16 1 修改了编译及链接部分的代码，使生成产物更接近于Makefile版本，同时修复了编译出的产物概率性刷入失败的BUG
+
+## 已知问题
+- 相较于Makefile，多出一个 `.note.GNU-stack` 节(尝试多种方式，但无济于事)
+- 产物略大于直接使用Makefile生成的版本
+> 已提供两种编译方式的 demo 在 `build` 目录下供对比
 
 ## 许可证
 
