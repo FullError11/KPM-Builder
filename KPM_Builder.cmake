@@ -71,9 +71,25 @@ message(STATUS "[KPM Builder] 使用的编译器: ${C_COMPILER_FOR_KPM}")
 message(STATUS "[KPM Builder] 使用的链接器: ${LINKER_FOR_KPM}")
 
 
-function(build_kpm_module TARGET_NAME SOURCE_FILES)
-    cmake_parse_arguments(ARG "" "" "INCLUDE_DIRS;DEFINITIONS;OPTIONS" ${ARGN})
+# 当有多个源文件时，cmake只编译了第一个源文件(在add_library部分)，帮我修复这个BUG
 
+function(build_kpm_module TARGET_NAME)
+    set(options "")
+    set(oneValueArgs "")
+    set(multiValueArgs 
+        INCLUDE_DIRS    # 包含目录 
+        DEFINITIONS     # 定义宏 
+        OPTIONS        # 编译选项 
+    )
+    
+    cmake_parse_arguments(PARSE_ARGV 1 "ARG" 
+        "${options}" 
+        "${oneValueArgs}" 
+        "${multiValueArgs}"
+    )
+
+    set(SOURCE_FILES ${ARG_UNPARSED_ARGUMENTS})
+ 
     set(TMP_OBJS_NAME "${TARGET_NAME}_tmp_objs")
     add_library(${TMP_OBJS_NAME} OBJECT ${SOURCE_FILES})
     set_target_properties(${TMP_OBJS_NAME} PROPERTIES
@@ -93,6 +109,7 @@ function(build_kpm_module TARGET_NAME SOURCE_FILES)
     )
     target_compile_definitions(${TMP_OBJS_NAME} PRIVATE ${ARG_DEFINITIONS})
     target_compile_options(${TMP_OBJS_NAME} PRIVATE
+        -r
         -O2  
         -fno-PIC
         -fno-unwind-tables
@@ -106,9 +123,13 @@ function(build_kpm_module TARGET_NAME SOURCE_FILES)
 
     add_custom_command(
         OUTPUT ${TARGET_NAME}.kpm
-        COMMAND ld -r -o ${TARGET_NAME}.kpm $<TARGET_OBJECTS:${TMP_OBJS_NAME}>
+        COMMAND ${LINKER_FOR_KPM} -r -o ${TARGET_NAME}.kpm 
+            $<TARGET_OBJECTS:${TMP_OBJS_NAME}>
         DEPENDS ${TMP_OBJS_NAME}
-     )
+        COMMAND_EXPAND_LISTS
+        VERBATIM
+    )
+   
     add_custom_target(${TARGET_NAME} ALL
         DEPENDS ${TARGET_NAME}.kpm
     )
